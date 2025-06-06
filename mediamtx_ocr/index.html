@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Screen Share OCR</title>
+  <style>
+    video, canvas {
+      border: 1px solid #ccc;
+      margin-top: 10px;
+      display: block;
+      max-width: 100%;
+    }
+    #ocrResult {
+      white-space: pre-wrap;
+      background: #f4f4f4;
+      padding: 10px;
+      margin-top: 10px;
+      border: 1px dashed #aaa;
+    }
+  </style>
+</head>
+<body>
+  <h2>Screen Share + OCR with Tesseract.js</h2>
+  <button id="startBtn">Start Screen Share</button>
+  <video id="screenVideo" autoplay playsinline></video>
+  <canvas id="frameCanvas" style="display: none;"></canvas>
+  <div id="ocrResult">Detected text will appear here...</div>
+
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.1/dist/tesseract.min.js"></script>
+  <script>
+    const startBtn = document.getElementById('startBtn');
+    const video = document.getElementById('screenVideo');
+    const canvas = document.getElementById('frameCanvas');
+    const ctx = canvas.getContext('2d');
+    const ocrResult = document.getElementById('ocrResult');
+    
+
+    let captureInterval;
+
+    startBtn.onclick = async () => {
+      try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+        alert("getDisplayMedia API is not supported in this browser.");
+        throw new Error("getDisplayMedia API not supported.");
+        }
+        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        video.srcObject = stream;
+
+        video.onloadedmetadata = () => {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+        };
+
+        captureInterval = setInterval(async () => {
+          if (video.videoWidth > 0 && video.videoHeight > 0) {
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+            
+            // OCR using Tesseract.js
+            Tesseract.recognize(blob, 'eng', {
+              logger: m => console.log(m.status, m.progress)
+            }).then(({ data: { text } }) => {
+              ocrResult.textContent = text.trim() || '[No text detected]';
+              console.log('OCR Text:', text);
+            }).catch(err => {
+              console.error('OCR Error:', err);
+              ocrResult.textContent = 'Error detecting text';
+            });
+          }
+        }, 2000);
+
+      } catch (err) {
+        console.error("Error: " + err);
+        alert("Screen sharing failed: " + err.message);
+      }
+    };
+
+    window.onbeforeunload = () => {
+      if (captureInterval) clearInterval(captureInterval);
+    };
+  </script>
+</body>
+</html>
